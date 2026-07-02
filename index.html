@@ -10,42 +10,126 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>Chinmay Rozekar's Memento Mori</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0d0f; }
+  :root { --bg:#0d0d0f; --fg:#e8e4da; --dim:#3c3c42; --accent:#c9a227; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); }
   canvas { display: block; width: 100vw; height: 100vh; }
-  #save {
-    position: fixed; right: 18px; bottom: 18px;
-    padding: 8px 14px; border-radius: 8px;
-    border: 1px solid rgba(128,128,128,.35);
-    background: transparent; color: inherit;
-    font: 13px/1 -apple-system, system-ui, sans-serif;
-    cursor: pointer; opacity: 0; transition: opacity .25s;
+
+  #chrome {
+    position: fixed; bottom: 14px; left: 0; right: 0;
+    display: flex; justify-content: center; align-items: center; gap: 18px;
+    font: 13px Georgia, serif; letter-spacing: 2px;
+    opacity: .3; transition: opacity .25s;
   }
-  body:hover #save { opacity: .55; }
-  #save:hover { opacity: 1 !important; }
+  #chrome:hover { opacity: 1; }
+  @media (hover: none) { #chrome { opacity: .75; } }
+  @media (max-width: 520px) {
+    #chrome { gap: 9px; font-size: 11px; letter-spacing: 1px; padding: 0 6px; flex-wrap: wrap; }
+  }
+  #chrome button {
+    background: none; border: none; padding: 4px 2px; cursor: pointer;
+    font: inherit; letter-spacing: inherit; color: var(--fg); opacity: .7;
+  }
+  #chrome button:hover { opacity: 1; }
+  #chrome button.active { color: var(--accent); opacity: 1; border-bottom: 1px solid var(--accent); }
+  #chrome .sep { opacity: .35; user-select: none; }
+
+  #setup {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(4px);
+  }
+  #setup[hidden] { display: none; }
+  #setup .card {
+    background: var(--bg); border: 1px solid var(--dim); border-radius: 12px;
+    padding: 34px 38px; max-width: 320px; text-align: center;
+    font: 15px/1.6 Georgia, serif;
+  }
+  #setup h1 { font: 400 20px Georgia, serif; letter-spacing: 5px; color: var(--accent); margin: 0 0 6px; }
+  #setup p  { margin: 4px 0 18px; opacity: .75; }
+  #setup label { display: block; margin: 14px 0 4px; letter-spacing: 1px; }
+  #setup input {
+    background: none; border: none; border-bottom: 1px solid var(--dim);
+    color: var(--fg); font: 20px Georgia, serif; text-align: center;
+    width: 130px; padding: 4px; outline: none; color-scheme: dark;
+  }
+  :root.light #setup input { color-scheme: light; }
+  #setup .or { opacity: .5; font-size: 13px; margin: 12px 0 2px; }
+  #setup button {
+    margin-top: 24px; background: none; cursor: pointer;
+    border: 1px solid var(--accent); color: var(--accent); border-radius: 8px;
+    padding: 9px 30px; font: 14px Georgia, serif; letter-spacing: 3px;
+  }
+  #setup button:hover { background: var(--accent); color: var(--bg); }
+  #setup .skip { display: block; margin-top: 14px; font-size: 12px; opacity: .5; cursor: pointer; }
+  #setup .skip:hover { opacity: .9; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<button id="save" title="Download as PNG wallpaper">&#8595; PNG</button>
+
+<div id="chrome" hidden>
+  <button data-view="life">LIFE</button>
+  <button data-view="year">YEAR</button>
+  <button data-view="month">MONTH</button>
+  <button data-view="weeks">WEEKS</button>
+  <span class="sep">&middot;</span>
+  <button id="ageBtn" title="Change your age">AGE</button>
+  <button id="themeBtn" title="Toggle light / dark">&#9681;</button>
+  <button id="saveBtn" title="Download PNG wallpaper">&#8595; PNG</button>
+</div>
+
+<div id="setup" hidden>
+  <div class="card">
+    <h1>MEMENTO MORI</h1>
+    <p>To map your life, it needs one number.</p>
+    <label>How old are you?</label>
+    <input type="number" id="ageIn" min="1" max="99" placeholder="30">
+    <div class="or">&mdash; or, for precision &mdash;</div>
+    <input type="date" id="dobIn">
+    <br>
+    <button id="beginBtn">BEGIN</button>
+    <span class="skip" id="skipBtn">skip &mdash; just show the year</span>
+  </div>
+</div>
+
 <script>
 (() => {
   const params = new URLSearchParams(location.search);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
 
   const THEMES = {
     dark:  { bg: '#0d0d0f', fg: '#e8e4da', dim: '#3c3c42', accent: '#c9a227' },
     light: { bg: '#f4f1ea', fg: '#1c1c1e', dim: '#c9c4b8', accent: '#b0432f' },
   };
-  const theme = THEMES[params.get('theme')] || THEMES.dark;
-  if (params.get('accent')) theme.accent = '#' + params.get('accent').replace(/^#/, '');
+  const accentOverride = params.get('accent');
+
+  const LIFESPAN = Math.min(120, Math.max(1, parseInt(params.get('years') || '80', 10) || 80));
+  const OWNER = (params.get('name') || "CHINMAY ROZEKAR'S").toUpperCase();
   const showQuote = params.get('quote') !== '0';
+  const headless = navigator.webdriver || params.get('ui') === '0';
 
-  document.body.style.background = theme.bg;
-  document.body.style.color = theme.fg;
+  const VIEWS = ['life', 'year', 'month', 'weeks'];
+  let themeName = params.get('theme') || store.get('mm.theme') || 'dark';
+  if (!THEMES[themeName]) themeName = 'dark';
+  let view = params.get('view') || store.get('mm.view') || 'year';
+  if (!VIEWS.includes(view)) view = 'year';
 
-  // Hide the download button for headless renders (GitHub Action) or ?ui=0
-  if (navigator.webdriver || params.get('ui') === '0') {
-    document.getElementById('save').style.display = 'none';
+  function parseDob() {
+    const p = params.get('dob');
+    if (p && !isNaN(Date.parse(p))) return new Date(p + 'T00:00:00');
+    const a = parseInt(params.get('age'), 10);
+    if (a > 0 && a < 120) {
+      const n = new Date();
+      return new Date(n.getFullYear() - a, n.getMonth(), n.getDate());
+    }
+    const s = store.get('mm.dob');
+    if (s && !isNaN(Date.parse(s))) return new Date(s + 'T00:00:00');
+    return null;
   }
+  let dob = parseDob();
 
   const QUOTES = [
     '"You could leave life right now." — Marcus Aurelius',
@@ -55,14 +139,17 @@
     '"He who fears death will never do anything worthy of a living man." — Seneca',
     '"Waste no more time arguing about what a good man should be. Be one." — Marcus Aurelius',
   ];
-
   const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const MONTHS_FULL = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY',
+    'AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
   const SERIF = "Georgia, 'Times New Roman', serif";
 
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
 
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const daysInYear = y => ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365;
+  const anniversary = (d, n) => new Date(d.getFullYear() + n, d.getMonth(), d.getDate());
 
   function roundRect(x, y, w, h, r) {
     ctx.beginPath();
@@ -74,7 +161,199 @@
     ctx.closePath();
   }
 
+  function applyTheme() {
+    const t = { ...THEMES[themeName] };
+    if (accentOverride) t.accent = '#' + accentOverride.replace(/^#/, '');
+    const root = document.documentElement;
+    root.classList.toggle('light', themeName === 'light');
+    root.style.setProperty('--bg', t.bg);
+    root.style.setProperty('--fg', t.fg);
+    root.style.setProperty('--dim', t.dim);
+    root.style.setProperty('--accent', t.accent);
+    document.querySelector('meta[name="theme-color"]').content = t.bg;
+    return t;
+  }
+
+  // ── views: each returns { h, render(top, t, u, now) } and a stats string ──
+
+  function bodyYear(availW, availH, u, now) {
+    const year = now.getFullYear();
+    const startOfYear = new Date(year, 0, 1);
+    const dayOfYear = Math.floor((now - startOfYear) / 864e5) + 1;
+    const total = daysInYear(year);
+    const week = Math.min(51, Math.floor((dayOfYear - 1) / 7));
+    const pct = ((dayOfYear - 1) + now.getHours() / 24) / total;
+
+    const cell = Math.min(58 * u, availW / 13);
+    const r = cell * 0.27;
+    const gridH = 3 * cell + 2 * r;
+    const mGap = 78 * u, mh = 62 * u, mLab = 36 * u;
+    const mw = Math.min(50 * u, (availW - 11 * 9 * u) / 12), mg = 9 * u;
+
+    return {
+      h: gridH + mGap + mh + mLab,
+      stats: `${year}   ·   WEEK ${week + 1} OF 52   ·   DAY ${dayOfYear} OF ${total}   ·   ` +
+             `${(pct * 100).toFixed(1)}% GONE   ·   ${total - dayOfYear} DAYS REMAIN`,
+      render(top, t, cx) {
+        const gx = cx - (13 * cell) / 2 + cell / 2;
+        const gy = top + r;
+        for (let i = 0; i < 52; i++) {
+          const x = gx + (i % 13) * cell;
+          const y = gy + Math.floor(i / 13) * cell;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          if (i < week) { ctx.fillStyle = t.fg; ctx.fill(); }
+          else if (i === week) { ctx.fillStyle = t.accent; ctx.fill(); }
+          else { ctx.strokeStyle = t.dim; ctx.lineWidth = 2.5 * u; ctx.stroke(); }
+        }
+        const mx0 = cx - (12 * mw + 11 * mg) / 2;
+        const my = top + gridH + mGap;
+        for (let m = 0; m < 12; m++) {
+          const x = mx0 + m * (mw + mg);
+          const s = new Date(year, m, 1), e = new Date(year, m + 1, 1);
+          const f = now <= s ? 0 : now >= e ? 1 : (now - s) / (e - s);
+          const isCurrent = f > 0 && f < 1;
+          ctx.strokeStyle = t.dim;
+          ctx.lineWidth = 2.5 * u;
+          roundRect(x, my, mw, mh, 9 * u);
+          ctx.stroke();
+          if (f > 0) {
+            ctx.save();
+            roundRect(x, my, mw, mh, 9 * u);
+            ctx.clip();
+            ctx.fillStyle = isCurrent ? t.accent : t.fg;
+            ctx.fillRect(x, my + mh * (1 - f), mw, mh * f);
+            ctx.restore();
+          }
+          ctx.fillStyle = isCurrent ? t.accent : t.dim;
+          ctx.font = `${15 * u}px ${SERIF}`;
+          ctx.fillText(MONTHS[m], x + mw / 2, my + mh + 28 * u);
+        }
+      },
+    };
+  }
+
+  function bodyMonth(availW, availH, u, now) {
+    const Y = now.getFullYear(), M = now.getMonth(), D = now.getDate();
+    const startDow = new Date(Y, M, 1).getDay();
+    const dim = new Date(Y, M + 1, 0).getDate();
+    const rows = Math.ceil((startDow + dim) / 7);
+    const cell = Math.min(availW / 7, availH / (rows + 0.7), 112 * u);
+    const headRow = cell * 0.6;
+    const gridW = 7 * cell;
+    const pct = (D - 1 + now.getHours() / 24) / dim;
+
+    return {
+      h: headRow + rows * cell,
+      stats: `${MONTHS_FULL[M]} ${Y}   ·   DAY ${D} OF ${dim}   ·   ` +
+             `${(pct * 100).toFixed(1)}% GONE   ·   ${dim - D} DAYS REMAIN`,
+      render(top, t, cx) {
+        ctx.textBaseline = 'middle';
+        ctx.font = `${cell * 0.26}px ${SERIF}`;
+        ctx.fillStyle = t.dim;
+        'SMTWTFS'.split('').forEach((ch, i) => {
+          ctx.fillText(ch, cx - gridW / 2 + i * cell + cell / 2, top + headRow / 2);
+        });
+        const r = cell * 0.37;
+        for (let d = 1; d <= dim; d++) {
+          const idx = startDow + d - 1;
+          const x = cx - gridW / 2 + (idx % 7) * cell + cell / 2;
+          const y = top + headRow + Math.floor(idx / 7) * cell + cell / 2;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          if (d < D) { ctx.fillStyle = t.fg; ctx.fill(); ctx.fillStyle = t.bg; }
+          else if (d === D) { ctx.fillStyle = t.accent; ctx.fill(); ctx.fillStyle = t.bg; }
+          else { ctx.strokeStyle = t.dim; ctx.lineWidth = 2 * u; ctx.stroke(); ctx.fillStyle = t.dim; }
+          ctx.font = `${cell * 0.3}px ${SERIF}`;
+          ctx.fillText(d, x, y + cell * 0.02);
+        }
+        ctx.textBaseline = 'alphabetic';
+      },
+    };
+  }
+
+  function bodyLife(availW, availH, u, now) {
+    const exact = (now - dob) / (365.2425 * 864e5);
+    const age = clamp(Math.floor(exact), 0, LIFESPAN - 1);
+    const cols = innerWidth >= innerHeight ? 10 : 8;
+    const rows = Math.ceil(LIFESPAN / cols);
+    const cell = Math.min(availW / cols, availH / rows, 120 * u);
+    const pad = cell * 0.18, sq = cell - pad;
+    const gridW = cols * cell;
+
+    return {
+      h: rows * cell,
+      stats: `AGE ${age}   ·   YEAR ${age + 1} OF ${LIFESPAN}   ·   ` +
+             `${clamp(exact / LIFESPAN * 100, 0, 100).toFixed(1)}% GONE   ·   ` +
+             `${Math.max(0, LIFESPAN - exact).toFixed(1)} YEARS REMAIN`,
+      render(top, t, cx) {
+        for (let i = 0; i < LIFESPAN; i++) {
+          const x = cx - gridW / 2 + (i % cols) * cell + pad / 2;
+          const y = top + Math.floor(i / cols) * cell + pad / 2;
+          const s = anniversary(dob, i), e = anniversary(dob, i + 1);
+          const f = clamp((now - s) / (e - s), 0, 1);
+          const isCurrent = f > 0 && f < 1;
+          ctx.strokeStyle = t.dim;
+          ctx.lineWidth = Math.max(1, 2 * u);
+          roundRect(x, y, sq, sq, sq * 0.2);
+          ctx.stroke();
+          if (f > 0) {
+            ctx.save();
+            roundRect(x, y, sq, sq, sq * 0.2);
+            ctx.clip();
+            ctx.fillStyle = isCurrent ? t.accent : t.fg;
+            ctx.fillRect(x, y + sq * (1 - f), sq, sq * f);
+            ctx.restore();
+          }
+        }
+      },
+    };
+  }
+
+  function bodyWeeks(availW, availH, u, now) {
+    const total = LIFESPAN * 52;
+    const lived = clamp(Math.floor((now - dob) / 6048e5), 0, total - 1);
+    const portrait = innerHeight > innerWidth;
+    const cols = portrait ? 52 : LIFESPAN;
+    const rows = portrait ? LIFESPAN : 52;
+    const cell = Math.min(availW / cols, availH / rows);
+    const r = Math.max(cell * 0.33, 1);
+    const gridW = cols * cell;
+    const fmt = n => n.toLocaleString('en-US');
+
+    return {
+      h: rows * cell,
+      stats: `WEEK ${fmt(lived + 1)} OF ${fmt(total)}   ·   ` +
+             `${(lived / total * 100).toFixed(1)}% GONE   ·   ${fmt(total - lived - 1)} WEEKS REMAIN`,
+      render(top, t, cx) {
+        for (let i = 0; i < total; i++) {
+          const yearIdx = Math.floor(i / 52), wkIdx = i % 52;
+          const col = portrait ? wkIdx : yearIdx;
+          const row = portrait ? yearIdx : wkIdx;
+          const x = cx - gridW / 2 + col * cell + cell / 2;
+          const y = top + row * cell + cell / 2;
+          ctx.beginPath();
+          if (i === lived) {
+            ctx.arc(x, y, r * 1.45, 0, Math.PI * 2);
+            ctx.fillStyle = t.accent;
+            ctx.fill();
+          } else if (i < lived) {
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fillStyle = t.fg;
+            ctx.fill();
+          } else {
+            ctx.arc(x, y, r * 0.8, 0, Math.PI * 2);
+            ctx.strokeStyle = t.dim;
+            ctx.lineWidth = Math.max(0.75, cell * 0.07);
+            ctx.stroke();
+          }
+        }
+      },
+    };
+  }
+
   function draw() {
+    const t = applyTheme();
     const dpr = window.devicePixelRatio || 1;
     const w = innerWidth, h = innerHeight;
     canvas.width = Math.round(w * dpr);
@@ -82,126 +361,140 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const now = new Date();
-    const year = now.getFullYear();
-    const startOfYear = new Date(year, 0, 1);
-    const dayOfYear = Math.floor((now - startOfYear) / 864e5) + 1;
-    const total = daysInYear(year);
-    const dayFrac = (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400;
-    const pct = ((dayOfYear - 1) + dayFrac) / total;
-    const week = Math.min(51, Math.floor((dayOfYear - 1) / 7)); // 0..51, tail days fold into week 52
+    if (!dob && (view === 'life' || view === 'weeks')) view = 'year';
 
-    ctx.fillStyle = theme.bg;
+    ctx.fillStyle = t.bg;
     ctx.fillRect(0, 0, w, h);
-
-    const cx = w / 2, cy = h / 2;
-    const u = Math.min(w, h) / 1000; // design unit
-
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
 
-    // ── Title ──
-    const owner = (params.get('name') || "CHINMAY ROZEKAR'S").toUpperCase();
-    ctx.fillStyle = theme.accent;
+    const cx = w / 2;
+    const u = Math.min(w, h) / 1000;
+    const availW = Math.min(w * 0.82, 1500 * u);
+    const headerH = 148 * u;
+    const footH = (showQuote ? 105 : 50) * u;
+    const vgap = 68 * u;
+    const availH = Math.max(120 * u, h * 0.92 - headerH - footH - 2 * vgap);
+
+    const body = { year: bodyYear, month: bodyMonth, life: bodyLife, weeks: bodyWeeks }[view](availW, availH, u, now);
+
+    const contentH = headerH + vgap + body.h + vgap + footH;
+    const top = Math.max(18 * u, (h - contentH) / 2);
+
+    // header
+    ctx.fillStyle = t.accent;
     ctx.font = `${23 * u}px ${SERIF}`;
     ctx.letterSpacing = `${8 * u}px`;
-    ctx.fillText(owner, cx, cy - 335 * u);
-    ctx.fillStyle = theme.fg;
+    ctx.fillText(OWNER, cx, top + 34 * u);
+    ctx.fillStyle = t.fg;
     ctx.font = `500 ${74 * u}px ${SERIF}`;
     ctx.letterSpacing = `${5 * u}px`;
-    ctx.fillText('MEMENTO MORI', cx, cy - 255 * u);
+    ctx.fillText('MEMENTO MORI', cx, top + 122 * u);
     ctx.letterSpacing = '0px';
 
-    // ── 52 weeks: 13 × 4 grid of dots ──
-    const cols = 13, cell = 58 * u, r = 15.5 * u;
-    const gx = cx - (cols * cell) / 2 + cell / 2;
-    const gy = cy - 150 * u;
-    for (let i = 0; i < 52; i++) {
-      const x = gx + (i % cols) * cell;
-      const y = gy + Math.floor(i / cols) * cell;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      if (i < week) {
-        ctx.fillStyle = theme.fg;
-        ctx.fill();
-      } else if (i === week) {
-        ctx.fillStyle = theme.accent;
-        ctx.fill();
-      } else {
-        ctx.strokeStyle = theme.dim;
-        ctx.lineWidth = 2.5 * u;
-        ctx.stroke();
-      }
-    }
+    // body
+    body.render(top + headerH + vgap, t, cx);
 
-    // ── 12 months: bars filling bottom-up ──
-    const mw = 50 * u, mg = 9 * u, mh = 62 * u, mr = 9 * u;
-    const mx0 = cx - (12 * mw + 11 * mg) / 2;
-    const my = cy + 100 * u;
-    for (let m = 0; m < 12; m++) {
-      const x = mx0 + m * (mw + mg);
-      const s = new Date(year, m, 1), e = new Date(year, m + 1, 1);
-      const f = now <= s ? 0 : now >= e ? 1 : (now - s) / (e - s);
-      const isCurrent = f > 0 && f < 1;
-
-      ctx.strokeStyle = theme.dim;
-      ctx.lineWidth = 2.5 * u;
-      roundRect(x, my, mw, mh, mr);
-      ctx.stroke();
-
-      if (f > 0) {
-        ctx.save();
-        roundRect(x, my, mw, mh, mr);
-        ctx.clip();
-        ctx.fillStyle = isCurrent ? theme.accent : theme.fg;
-        ctx.fillRect(x, my + mh * (1 - f), mw, mh * f);
-        ctx.restore();
-      }
-
-      ctx.fillStyle = isCurrent ? theme.accent : theme.dim;
-      ctx.font = `${15 * u}px ${SERIF}`;
-      ctx.fillText(MONTHS[m], x + mw / 2, my + mh + 28 * u);
-    }
-
-    // ── Stats ──
+    // stats + quote
+    const sy = top + headerH + vgap + body.h + vgap;
     ctx.globalAlpha = 0.65;
-    ctx.fillStyle = theme.fg;
+    ctx.fillStyle = t.fg;
     ctx.font = `${20 * u}px ${SERIF}`;
-    ctx.fillText(
-      `${year}   ·   WEEK ${week + 1} OF 52   ·   DAY ${dayOfYear} OF ${total}   ·   ` +
-      `${(pct * 100).toFixed(1)}% GONE   ·   ${total - dayOfYear} DAYS REMAIN`,
-      cx, cy + 290 * u
-    );
-
-    // ── Quote of the day ──
+    ctx.fillText(body.stats, cx, sy + 18 * u);
     if (showQuote) {
       ctx.globalAlpha = 0.4;
       ctx.font = `italic ${17 * u}px ${SERIF}`;
-      ctx.fillText(QUOTES[dayOfYear % QUOTES.length], cx, cy + 340 * u);
+      const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 1)) / 864e5) + 1;
+      ctx.fillText(QUOTES[dayOfYear % QUOTES.length], cx, sy + 62 * u);
     }
     ctx.globalAlpha = 1;
+
+    syncChrome();
   }
 
+  // ── chrome (view switcher / theme / age / download) ──
+  const chrome = document.getElementById('chrome');
+  const setup = document.getElementById('setup');
+
+  function syncChrome() {
+    chrome.querySelectorAll('[data-view]').forEach(b =>
+      b.classList.toggle('active', b.dataset.view === view));
+  }
+
+  if (!headless) {
+    chrome.hidden = false;
+    chrome.querySelectorAll('[data-view]').forEach(b => {
+      b.addEventListener('click', () => {
+        if ((b.dataset.view === 'life' || b.dataset.view === 'weeks') && !dob) {
+          openSetup();
+          return;
+        }
+        view = b.dataset.view;
+        store.set('mm.view', view);
+        draw();
+      });
+    });
+    document.getElementById('themeBtn').addEventListener('click', () => {
+      themeName = themeName === 'dark' ? 'light' : 'dark';
+      store.set('mm.theme', themeName);
+      draw();
+    });
+    document.getElementById('ageBtn').addEventListener('click', openSetup);
+    document.getElementById('saveBtn').addEventListener('click', () => {
+      canvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `memento-mori-${view}-${new Date().toISOString().slice(0, 10)}.png`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    });
+  }
+
+  function openSetup() {
+    if (dob) {
+      document.getElementById('dobIn').value =
+        `${dob.getFullYear()}-${String(dob.getMonth() + 1).padStart(2, '0')}-${String(dob.getDate()).padStart(2, '0')}`;
+      document.getElementById('ageIn').value =
+        Math.floor((Date.now() - dob) / (365.2425 * 864e5));
+    }
+    setup.hidden = false;
+  }
+
+  document.getElementById('beginBtn').addEventListener('click', () => {
+    const dobV = document.getElementById('dobIn').value;
+    const ageV = parseInt(document.getElementById('ageIn').value, 10);
+    if (dobV && !isNaN(Date.parse(dobV))) {
+      dob = new Date(dobV + 'T00:00:00');
+    } else if (ageV > 0 && ageV < 120) {
+      const n = new Date();
+      dob = new Date(n.getFullYear() - ageV, n.getMonth(), n.getDate());
+    } else {
+      return; // nothing entered
+    }
+    store.set('mm.dob',
+      `${dob.getFullYear()}-${String(dob.getMonth() + 1).padStart(2, '0')}-${String(dob.getDate()).padStart(2, '0')}`);
+    setup.hidden = true;
+    if (!params.get('view') && !store.get('mm.view')) { view = 'life'; store.set('mm.view', view); }
+    draw();
+  });
+  document.getElementById('skipBtn').addEventListener('click', () => {
+    store.set('mm.skip', '1');
+    setup.hidden = true;
+  });
+
+  // first visit: ask
+  if (!dob && !headless && !store.get('mm.skip')) setup.hidden = false;
+
+  // ── refresh cycle ──
   function scheduleMidnightRedraw() {
     const now = new Date();
     const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
     setTimeout(() => { draw(); scheduleMidnightRedraw(); }, midnight - now);
   }
-
   addEventListener('resize', draw);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) draw(); });
-  // Live wallpaper apps can keep pages alive for weeks — refresh hourly as a safety net.
-  setInterval(draw, 36e5);
-
-  document.getElementById('save').addEventListener('click', () => {
-    canvas.toBlob(blob => {
-      const a = document.createElement('a');
-      const d = new Date();
-      a.href = URL.createObjectURL(blob);
-      a.download = `memento-mori-${d.toISOString().slice(0, 10)}.png`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    });
-  });
+  setInterval(draw, 36e5); // safety net for long-lived wallpaper apps
 
   draw();
   scheduleMidnightRedraw();

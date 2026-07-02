@@ -45,14 +45,45 @@ Point any wallpaper-automation app at the `android.png` URL:
 - **Static**: open the page, hover, click **↓ PNG** — downloads at your exact
   screen resolution — or grab `wallpapers/desktop.png`.
 
+## Views
+
+On first visit the app asks your age (or exact birthday, stored only in your
+browser) and assumes an 80-year life. Switch views from the bottom bar, toggle
+light/dark with ◐, change your age with AGE:
+
+- **LIFE** — 80 year-squares, each filling up as the year passes
+- **YEAR** — 52 week dots + 12 month bars for the current year
+- **MONTH** — the current month's days, with days remaining
+- **WEEKS** — your whole life in 4,160 weeks, one dot each
+
 ## Customize via URL parameters
 
 | Parameter | Values | Default |
 |---|---|---|
-| `?name=` | any text, e.g. `?name=ADA+LOVELACE'S` | `CHINMAY ROZEKAR'S` |
+| `?view=` | `life`, `year`, `month`, `weeks` | last used, else `year` |
+| `?age=` | your age in years, e.g. `?age=30` | asked on first visit |
+| `?dob=` | exact birthday `YYYY-MM-DD` (overrides age) | — |
+| `?years=` | assumed lifespan | `80` |
 | `?theme=` | `dark`, `light` | `dark` |
+| `?name=` | any text, e.g. `?name=ADA+LOVELACE'S` | `CHINMAY ROZEKAR'S` |
 | `?accent=` | any hex, e.g. `?accent=b0432f` | gold `c9a227` |
 | `?quote=` | `0` hides the daily Stoic quote | shown |
+| `?ui=` | `0` hides all buttons/overlays (used for renders) | shown |
+
+## Configure the nightly wallpaper renders
+
+The Action reads three optional repository variables (Settings → Secrets and
+variables → Actions → Variables), so your birthday never lives in the code:
+
+```sh
+gh variable set WALLPAPER_VIEW  --body "weeks"        # life | year | month | weeks
+gh variable set WALLPAPER_THEME --body "dark"         # dark | light
+gh variable set WALLPAPER_DOB   --body "1996-01-01"   # needed for life/weeks views
+```
+
+Unset, it renders the year view in dark. Note: on a public repo, variables are
+visible to collaborators and the rendered wallpaper itself reveals life
+progress — if that bothers you, set only the birth year (`YYYY-01-01`).
 
 ## How it works
 

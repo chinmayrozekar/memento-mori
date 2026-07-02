@@ -36,9 +36,15 @@ jobs:
         run: npx --yes $PW install --with-deps chromium
 
       - name: Render wallpapers
+        env:
+          VIEW: ${{ vars.WALLPAPER_VIEW || 'year' }}
+          THEME: ${{ vars.WALLPAPER_THEME || 'dark' }}
+          DOB: ${{ vars.WALLPAPER_DOB || '' }}
         run: |
           mkdir -p wallpapers
-          PAGE="file://$PWD/index.html"
+          python3 -m http.server 8080 &
+          sleep 2
+          PAGE="http://localhost:8080/index.html?ui=0&view=$VIEW&theme=$THEME&dob=$DOB"
           npx --yes $PW screenshot --browser=chromium --viewport-size="1170,2532" --wait-for-timeout=1200 "$PAGE" wallpapers/ios.png
           npx --yes $PW screenshot --browser=chromium --viewport-size="1080,2400" --wait-for-timeout=1200 "$PAGE" wallpapers/android.png
           npx --yes $PW screenshot --browser=chromium --viewport-size="2560,1440" --wait-for-timeout=1200 "$PAGE" wallpapers/desktop.png
