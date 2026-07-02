@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0d0d0f">
-<title>Memento Mori — Year Calendar</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Chinmay Rozekar's Memento Mori</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0d0f; }
   canvas { display: block; width: 100vw; height: 100vh; }
@@ -91,12 +95,16 @@
     ctx.textBaseline = 'alphabetic';
 
     // ── Title ──
-    ctx.fillStyle = theme.fg;
-    ctx.font = `500 ${92 * u}px ${SERIF}`;
-    ctx.fillText(year, cx, cy - 300 * u);
+    const owner = (params.get('name') || "CHINMAY ROZEKAR'S").toUpperCase();
     ctx.fillStyle = theme.accent;
     ctx.font = `${23 * u}px ${SERIF}`;
-    ctx.fillText('M E M E N T O   M O R I', cx, cy - 251 * u);
+    ctx.letterSpacing = `${8 * u}px`;
+    ctx.fillText(owner, cx, cy - 335 * u);
+    ctx.fillStyle = theme.fg;
+    ctx.font = `500 ${74 * u}px ${SERIF}`;
+    ctx.letterSpacing = `${5 * u}px`;
+    ctx.fillText('MEMENTO MORI', cx, cy - 255 * u);
+    ctx.letterSpacing = '0px';
 
     // ── 52 weeks: 13 × 4 grid of dots ──
     const cols = 13, cell = 58 * u, r = 15.5 * u;
@@ -154,7 +162,7 @@
     ctx.fillStyle = theme.fg;
     ctx.font = `${20 * u}px ${SERIF}`;
     ctx.fillText(
-      `WEEK ${week + 1} OF 52   ·   DAY ${dayOfYear} OF ${total}   ·   ` +
+      `${year}   ·   WEEK ${week + 1} OF 52   ·   DAY ${dayOfYear} OF ${total}   ·   ` +
       `${(pct * 100).toFixed(1)}% GONE   ·   ${total - dayOfYear} DAYS REMAIN`,
       cx, cy + 290 * u
     );

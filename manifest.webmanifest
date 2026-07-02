@@ -1,0 +1,13 @@
+{
+  "name": "Chinmay Rozekar's Memento Mori",
+  "short_name": "Memento Mori",
+  "description": "How much of the year is gone — 52 weeks, 12 months.",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0d0d0f",
+  "theme_color": "#0d0d0f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

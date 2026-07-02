@@ -1,0 +1,52 @@
+name: Render daily wallpapers
+
+on:
+  schedule:
+    - cron: "15 8 * * *" # shortly after midnight Pacific
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [index.html]
+
+permissions:
+  contents: write
+
+env:
+  TZ: America/Los_Angeles
+  PW: playwright@1.49.0
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Georgia font (ms core fonts)
+        run: |
+          echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | sudo debconf-set-selections
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ttf-mscorefonts-installer fontconfig
+          sudo fc-cache -f
+
+      - name: Install Chromium
+        run: npx --yes $PW install --with-deps chromium
+
+      - name: Render wallpapers
+        run: |
+          mkdir -p wallpapers
+          PAGE="file://$PWD/index.html"
+          npx --yes $PW screenshot --browser=chromium --viewport-size="1170,2532" --wait-for-timeout=1200 "$PAGE" wallpapers/ios.png
+          npx --yes $PW screenshot --browser=chromium --viewport-size="1080,2400" --wait-for-timeout=1200 "$PAGE" wallpapers/android.png
+          npx --yes $PW screenshot --browser=chromium --viewport-size="2560,1440" --wait-for-timeout=1200 "$PAGE" wallpapers/desktop.png
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add wallpapers
+          git commit -m "chore: daily wallpaper render $(date +%F)" || { echo "no changes"; exit 0; }
+          git push
