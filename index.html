@@ -42,6 +42,11 @@
   document.body.style.background = theme.bg;
   document.body.style.color = theme.fg;
 
+  // Hide the download button for headless renders (GitHub Action) or ?ui=0
+  if (navigator.webdriver || params.get('ui') === '0') {
+    document.getElementById('save').style.display = 'none';
+  }
+
   const QUOTES = [
     '"You could leave life right now." — Marcus Aurelius',
     '"It is not that we have a short time to live, but that we waste a lot of it." — Seneca',
