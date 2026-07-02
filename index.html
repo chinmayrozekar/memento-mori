@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d0d0f">
+<title>Memento Mori — Year Calendar</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0d0f; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #save {
+    position: fixed; right: 18px; bottom: 18px;
+    padding: 8px 14px; border-radius: 8px;
+    border: 1px solid rgba(128,128,128,.35);
+    background: transparent; color: inherit;
+    font: 13px/1 -apple-system, system-ui, sans-serif;
+    cursor: pointer; opacity: 0; transition: opacity .25s;
+  }
+  body:hover #save { opacity: .55; }
+  #save:hover { opacity: 1 !important; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="save" title="Download as PNG wallpaper">&#8595; PNG</button>
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+
+  const THEMES = {
+    dark:  { bg: '#0d0d0f', fg: '#e8e4da', dim: '#3c3c42', accent: '#c9a227' },
+    light: { bg: '#f4f1ea', fg: '#1c1c1e', dim: '#c9c4b8', accent: '#b0432f' },
+  };
+  const theme = THEMES[params.get('theme')] || THEMES.dark;
+  if (params.get('accent')) theme.accent = '#' + params.get('accent').replace(/^#/, '');
+  const showQuote = params.get('quote') !== '0';
+
+  document.body.style.background = theme.bg;
+  document.body.style.color = theme.fg;
+
+  const QUOTES = [
+    '"You could leave life right now." — Marcus Aurelius',
+    '"It is not that we have a short time to live, but that we waste a lot of it." — Seneca',
+    '"Think of yourself as dead. You have lived your life. Now take what’s left and live it properly." — Marcus Aurelius',
+    '"Let us prepare our minds as if we’d come to the very end of life." — Seneca',
+    '"He who fears death will never do anything worthy of a living man." — Seneca',
+    '"Waste no more time arguing about what a good man should be. Be one." — Marcus Aurelius',
+  ];
+
+  const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const SERIF = "Georgia, 'Times New Roman', serif";
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const daysInYear = y => ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365;
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = innerWidth, h = innerHeight;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const startOfYear = new Date(year, 0, 1);
+    const dayOfYear = Math.floor((now - startOfYear) / 864e5) + 1;
+    const total = daysInYear(year);
+    const dayFrac = (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400;
+    const pct = ((dayOfYear - 1) + dayFrac) / total;
+    const week = Math.min(51, Math.floor((dayOfYear - 1) / 7)); // 0..51, tail days fold into week 52
+
+    ctx.fillStyle = theme.bg;
+    ctx.fillRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const u = Math.min(w, h) / 1000; // design unit
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+
+    // ── Title ──
+    ctx.fillStyle = theme.fg;
+    ctx.font = `500 ${92 * u}px ${SERIF}`;
+    ctx.fillText(year, cx, cy - 300 * u);
+    ctx.fillStyle = theme.accent;
+    ctx.font = `${23 * u}px ${SERIF}`;
+    ctx.fillText('M E M E N T O   M O R I', cx, cy - 251 * u);
+
+    // ── 52 weeks: 13 × 4 grid of dots ──
+    const cols = 13, cell = 58 * u, r = 15.5 * u;
+    const gx = cx - (cols * cell) / 2 + cell / 2;
+    const gy = cy - 150 * u;
+    for (let i = 0; i < 52; i++) {
+      const x = gx + (i % cols) * cell;
+      const y = gy + Math.floor(i / cols) * cell;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      if (i < week) {
+        ctx.fillStyle = theme.fg;
+        ctx.fill();
+      } else if (i === week) {
+        ctx.fillStyle = theme.accent;
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = theme.dim;
+        ctx.lineWidth = 2.5 * u;
+        ctx.stroke();
+      }
+    }
+
+    // ── 12 months: bars filling bottom-up ──
+    const mw = 50 * u, mg = 9 * u, mh = 62 * u, mr = 9 * u;
+    const mx0 = cx - (12 * mw + 11 * mg) / 2;
+    const my = cy + 100 * u;
+    for (let m = 0; m < 12; m++) {
+      const x = mx0 + m * (mw + mg);
+      const s = new Date(year, m, 1), e = new Date(year, m + 1, 1);
+      const f = now <= s ? 0 : now >= e ? 1 : (now - s) / (e - s);
+      const isCurrent = f > 0 && f < 1;
+
+      ctx.strokeStyle = theme.dim;
+      ctx.lineWidth = 2.5 * u;
+      roundRect(x, my, mw, mh, mr);
+      ctx.stroke();
+
+      if (f > 0) {
+        ctx.save();
+        roundRect(x, my, mw, mh, mr);
+        ctx.clip();
+        ctx.fillStyle = isCurrent ? theme.accent : theme.fg;
+        ctx.fillRect(x, my + mh * (1 - f), mw, mh * f);
+        ctx.restore();
+      }
+
+      ctx.fillStyle = isCurrent ? theme.accent : theme.dim;
+      ctx.font = `${15 * u}px ${SERIF}`;
+      ctx.fillText(MONTHS[m], x + mw / 2, my + mh + 28 * u);
+    }
+
+    // ── Stats ──
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = theme.fg;
+    ctx.font = `${20 * u}px ${SERIF}`;
+    ctx.fillText(
+      `WEEK ${week + 1} OF 52   ·   DAY ${dayOfYear} OF ${total}   ·   ` +
+      `${(pct * 100).toFixed(1)}% GONE   ·   ${total - dayOfYear} DAYS REMAIN`,
+      cx, cy + 290 * u
+    );
+
+    // ── Quote of the day ──
+    if (showQuote) {
+      ctx.globalAlpha = 0.4;
+      ctx.font = `italic ${17 * u}px ${SERIF}`;
+      ctx.fillText(QUOTES[dayOfYear % QUOTES.length], cx, cy + 340 * u);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function scheduleMidnightRedraw() {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+    setTimeout(() => { draw(); scheduleMidnightRedraw(); }, midnight - now);
+  }
+
+  addEventListener('resize', draw);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) draw(); });
+  // Live wallpaper apps can keep pages alive for weeks — refresh hourly as a safety net.
+  setInterval(draw, 36e5);
+
+  document.getElementById('save').addEventListener('click', () => {
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      const d = new Date();
+      a.href = URL.createObjectURL(blob);
+      a.download = `memento-mori-${d.toISOString().slice(0, 10)}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  });
+
+  draw();
+  scheduleMidnightRedraw();
+})();
+</script>
+</body>
+</html>
